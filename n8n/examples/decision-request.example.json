@@ -1,0 +1,7 @@
+{
+  "proposal_id": "PROP-0123456789AB",
+  "decision": "APPROVE",
+  "session_id": "fictional-demo-session",
+  "approver": "authorized-demo-operator",
+  "decision_key": "n8n-execution-12345"
+}

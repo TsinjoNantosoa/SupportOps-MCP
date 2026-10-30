@@ -1,0 +1,32 @@
+{
+  "name": "SupportOps 07 - Error Monitoring",
+  "nodes": [
+    {
+      "parameters": {},
+      "id": "a7000007-0000-4000-8000-000000000001",
+      "name": "On Workflow Error",
+      "type": "n8n-nodes-base.errorTrigger",
+      "typeVersion": 1,
+      "position": [-320, 0]
+    },
+    {
+      "parameters": {
+        "jsCode": "const e=$json.execution||{};\nconst w=$json.workflow||{};\nconst message=String(e.error?.message||$json.error?.message||'Unknown error');\nlet category='WORKFLOW_ERROR';\nif(/MCP/i.test(message)) category='MCP_ERROR';\nelse if(/timeout/i.test(message)) category='TIMEOUT';\nelse if(/validation/i.test(message)) category='VALIDATION_ERROR';\nelse if(/expired/i.test(message)) category='PROPOSAL_EXPIRED';\nelse if(/unauthor|forbidden|permission/i.test(message)) category='AUTHORIZATION_ERROR';\nelse if(/stale|version|conflict/i.test(message)) category='VERSION_CONFLICT';\nelse if(/sqlite|database|storage/i.test(message)) category='STORAGE_ERROR';\nelse if(/model|openai|llm/i.test(message)) category='MODEL_ERROR';\nreturn [{json:{occurred_at:new Date().toISOString(),workflow_id:w.id||null,workflow_name:w.name||null,execution_id:e.id||null,category,error_name:e.error?.name||null,safe_message:message.slice(0,500),note:'Prompt bodies, credentials, headers, and full model responses are intentionally omitted.'}}];"
+      },
+      "id": "a7000007-0000-4000-8000-000000000002",
+      "name": "Classify and Redact Error",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [-80, 0]
+    }
+  ],
+  "connections": {
+    "On Workflow Error": {"main": [[{"node": "Classify and Redact Error", "type": "main", "index": 0}]]}
+  },
+  "pinData": {},
+  "active": false,
+  "settings": {"executionOrder": "v1"},
+  "versionId": "a7000007-0000-4000-8000-000000000099",
+  "meta": {"supportopsTargetN8n": "2.45.7"},
+  "tags": []
+}

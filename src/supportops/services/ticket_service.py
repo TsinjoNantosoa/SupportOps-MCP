@@ -105,8 +105,17 @@ class TicketService:
         return [dict(row) for row in rows]
 
     def prepare_update(
-        self, request: UpdateRequest, *, session_id: str, user_id: str, ttl_minutes: int = 30
+        self,
+        request: UpdateRequest,
+        *,
+        session_id: str,
+        user_id: str,
+        ttl_minutes: int = 30,
+        idempotency_key: str | None = None,
+        correlation_id: str | None = None,
     ) -> Proposal:
+        idempotency_key = self._validated_metadata(idempotency_key, "idempotency_key")
+        correlation_id = self._validated_metadata(correlation_id, "correlation_id")
         ticket = self.get_ticket(request.ticket_id)
         if (
             request.proposed_status
@@ -117,36 +126,73 @@ class TicketService:
             )
         now = datetime.now(UTC)
         proposal_id = f"PROP-{uuid.uuid4().hex[:12].upper()}"
-        values = (
-            proposal_id,
-            ticket.ticket_id,
-            request.proposed_note,
-            request.proposed_status.value if request.proposed_status else None,
-            request.reason,
-            ticket.version,
-            "PENDING",
-            session_id,
-            user_id,
-            now.isoformat(),
-            (now + timedelta(minutes=ttl_minutes)).isoformat(),
-        )
+        existing_id: str | None = None
         with self.db.transaction(immediate=True) as connection:
-            connection.execute(
-                """INSERT INTO ticket_update_proposals
-                (proposal_id,ticket_id,proposed_note,proposed_status,reason,ticket_version,
-                 status,session_id,user_id,created_at,expires_at) VALUES (?,?,?,?,?,?,?,?,?,?,?)""",
-                values,
-            )
-            record_audit(
-                connection,
-                actor=user_id,
-                action="PROPOSAL_CREATED",
-                target_type="ticket_update_proposal",
-                target_id=proposal_id,
-                outcome="PENDING",
-                details={"ticket_id": ticket.ticket_id, "session_id": session_id},
-            )
-        return self.get_proposal(proposal_id)
+            if idempotency_key:
+                existing = connection.execute(
+                    """SELECT * FROM ticket_update_proposals
+                    WHERE session_id=? AND idempotency_key=?""",
+                    (session_id, idempotency_key),
+                ).fetchone()
+                if existing:
+                    expected_status = (
+                        request.proposed_status.value if request.proposed_status else None
+                    )
+                    same_payload = (
+                        existing["ticket_id"] == request.ticket_id
+                        and existing["proposed_note"] == request.proposed_note
+                        and existing["proposed_status"] == expected_status
+                        and existing["reason"] == request.reason
+                        and existing["user_id"] == user_id
+                    )
+                    if not same_payload:
+                        raise ValueError("idempotency key was already used for another payload")
+                    existing_id = existing["proposal_id"]
+            if existing_id is None:
+                connection.execute(
+                    """INSERT INTO ticket_update_proposals
+                    (proposal_id,ticket_id,proposed_note,proposed_status,reason,ticket_version,
+                     status,session_id,user_id,idempotency_key,correlation_id,created_at,expires_at)
+                    VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+                    (
+                        proposal_id,
+                        ticket.ticket_id,
+                        request.proposed_note,
+                        request.proposed_status.value if request.proposed_status else None,
+                        request.reason,
+                        ticket.version,
+                        "PENDING",
+                        session_id,
+                        user_id,
+                        idempotency_key,
+                        correlation_id,
+                        now.isoformat(),
+                        (now + timedelta(minutes=ttl_minutes)).isoformat(),
+                    ),
+                )
+                record_audit(
+                    connection,
+                    actor=user_id,
+                    action="PROPOSAL_CREATED",
+                    target_type="ticket_update_proposal",
+                    target_id=proposal_id,
+                    outcome="PENDING",
+                    details={
+                        "ticket_id": ticket.ticket_id,
+                        "session_id": session_id,
+                        "correlation_id": correlation_id,
+                    },
+                )
+        return self.get_proposal(existing_id or proposal_id)
+
+    @staticmethod
+    def _validated_metadata(value: str | None, name: str) -> str | None:
+        if value is None:
+            return None
+        value = value.strip()
+        if not 1 <= len(value) <= 200 or not re.fullmatch(r"[A-Za-z0-9._:-]+", value):
+            raise ValueError(f"{name} must be 1-200 safe identifier characters")
+        return value
 
     def get_proposal(self, proposal_id: str) -> Proposal:
         with self.db.connect() as connection:

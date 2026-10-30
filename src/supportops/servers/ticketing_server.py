@@ -5,6 +5,7 @@ from mcp.server.mcpserver.exceptions import ToolError
 
 from supportops.config import Settings
 from supportops.models.ticket import Priority, TicketStatus
+from supportops.servers.runtime import run_server
 from supportops.services.ticket_service import TicketService, UpdateRequest
 from supportops.storage.seed import initialize_database
 
@@ -57,6 +58,8 @@ def prepare_ticket_update(
     proposed_note: str,
     reason: str,
     proposed_status: TicketStatus | None = None,
+    idempotency_key: str | None = None,
+    correlation_id: str | None = None,
 ) -> dict[str, object]:
     """Create a pending proposal only; this tool cannot apply or approve changes."""
     try:
@@ -67,13 +70,19 @@ def prepare_ticket_update(
             reason=reason,
         )
         proposal = service.prepare_update(
-            request, session_id=settings.session_id, user_id=settings.user_id
+            request,
+            session_id=settings.session_id,
+            user_id=settings.user_id,
+            idempotency_key=idempotency_key,
+            correlation_id=correlation_id,
         )
         return {
             "proposal_id": proposal.proposal_id,
             "status": proposal.status.value,
             "ticket_id": proposal.ticket_id,
             "ticket_version": proposal.ticket_version,
+            "idempotency_key": proposal.idempotency_key,
+            "correlation_id": proposal.correlation_id,
             "expires_at": proposal.expires_at.isoformat(),
             "changes": {
                 "note": proposal.proposed_note,
@@ -86,7 +95,12 @@ def prepare_ticket_update(
 
 
 def main() -> None:
-    mcp.run(transport="stdio")
+    run_server(
+        mcp,
+        settings,
+        host=settings.ticketing_host,
+        port=settings.ticketing_port,
+    )
 
 
 if __name__ == "__main__":

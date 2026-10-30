@@ -1,0 +1,83 @@
+{
+  "name": "SupportOps 05 - Approval Request",
+  "nodes": [
+    {
+      "parameters": {"inputSource": "passthrough"},
+      "id": "a5000005-0000-4000-8000-000000000001",
+      "name": "When Executed by Another Workflow",
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1.1,
+      "position": [-520, 0]
+    },
+    {
+      "parameters": {
+        "jsCode": "const id = String($json.proposal_id || '').trim();\nif (!/^PROP-[A-F0-9]{12}$/.test(id)) throw new Error('VALIDATION_ERROR: invalid proposal_id');\nreturn [{json:{...$json, proposal_id:id}}];"
+      },
+      "id": "a5000005-0000-4000-8000-000000000002",
+      "name": "Validate Proposal ID",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [-300, 0]
+    },
+    {
+      "parameters": {
+        "url": "=http://supportops-approval:8010/proposals/{{ $json.proposal_id }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "options": {"timeout": 10000}
+      },
+      "id": "a5000005-0000-4000-8000-000000000003",
+      "name": "Read Exact Proposal from Trusted API",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [-80, 0]
+    },
+    {
+      "parameters": {
+        "jsCode": "const p=$json;\nreturn [{json:{approval_request:{proposal_id:p.proposal_id,ticket_id:p.ticket_id,proposed_note:p.proposed_note,proposed_status:p.proposed_status,reason:p.reason,ticket_version:p.ticket_version,expires_at:p.expires_at},instruction:'Review every field, then POST an explicit decision to the resume URL. This workflow never changes the ticket.'}}];"
+      },
+      "id": "a5000005-0000-4000-8000-000000000004",
+      "name": "Present Exact Changes",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [140, 0]
+    },
+    {
+      "parameters": {
+        "resume": "webhook",
+        "httpRequestMethod": "POST",
+        "responseMode": "onReceived",
+        "options": {}
+      },
+      "id": "a5000005-0000-4000-8000-000000000005",
+      "name": "Wait for Human Review",
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [380, 0],
+      "webhookId": "supportops-approval-wait"
+    },
+    {
+      "parameters": {
+        "jsCode": "const decision=String($json.body?.decision || $json.decision || '').toUpperCase();\nif (!['APPROVE','REJECT'].includes(decision)) throw new Error('VALIDATION_ERROR: decision must be APPROVE or REJECT');\nreturn [{json:{...$json,decision,review_only:true,message:'Decision captured. Use workflow 06 or trusted CLI to request the controlled transaction.'}}];"
+      },
+      "id": "a5000005-0000-4000-8000-000000000006",
+      "name": "Validate Human Decision",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [620, 0]
+    }
+  ],
+  "connections": {
+    "When Executed by Another Workflow": {"main": [[{"node": "Validate Proposal ID", "type": "main", "index": 0}]]},
+    "Validate Proposal ID": {"main": [[{"node": "Read Exact Proposal from Trusted API", "type": "main", "index": 0}]]},
+    "Read Exact Proposal from Trusted API": {"main": [[{"node": "Present Exact Changes", "type": "main", "index": 0}]]},
+    "Present Exact Changes": {"main": [[{"node": "Wait for Human Review", "type": "main", "index": 0}]]},
+    "Wait for Human Review": {"main": [[{"node": "Validate Human Decision", "type": "main", "index": 0}]]}
+  },
+  "pinData": {},
+  "active": false,
+  "settings": {"executionOrder": "v1"},
+  "versionId": "a5000005-0000-4000-8000-000000000099",
+  "meta": {"templateCredsSetupCompleted": false, "supportopsTargetN8n": "2.45.7"},
+  "tags": []
+}

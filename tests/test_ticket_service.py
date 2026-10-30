@@ -43,3 +43,36 @@ def test_prepare_does_not_change_ticket(tickets: TicketService) -> None:
     assert before.status == after.status
     assert before.notes == after.notes == []
     assert before.version == after.version
+
+
+def test_proposal_creation_is_idempotent(tickets: TicketService) -> None:
+    request = UpdateRequest(
+        ticket_id="INC-1042",
+        proposed_note="One note for a retried n8n execution.",
+        reason="Idempotence test",
+    )
+    first = tickets.prepare_update(
+        request,
+        session_id="n8n-session",
+        user_id="n8n-host",
+        idempotency_key="execution-123",
+        correlation_id="chat-456",
+    )
+    replay = tickets.prepare_update(
+        request,
+        session_id="n8n-session",
+        user_id="n8n-host",
+        idempotency_key="execution-123",
+        correlation_id="chat-456",
+    )
+    assert replay.proposal_id == first.proposal_id
+    assert replay.correlation_id == "chat-456"
+    assert len(tickets.list_proposals()) == 1
+    changed = request.model_copy(update={"proposed_note": "Different payload."})
+    with pytest.raises(ValueError, match="another payload"):
+        tickets.prepare_update(
+            changed,
+            session_id="n8n-session",
+            user_id="n8n-host",
+            idempotency_key="execution-123",
+        )

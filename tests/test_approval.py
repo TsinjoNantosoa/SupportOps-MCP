@@ -49,6 +49,39 @@ def test_valid_approval_is_single_use_and_audited(db, tickets) -> None:
         assert connection.execute("SELECT COUNT(*) FROM audit_events").fetchone()[0] >= 2
 
 
+def test_decision_retry_key_is_idempotent_but_new_double_approval_is_refused(db, tickets) -> None:
+    proposal = make_proposal(tickets)
+    approval = ApprovalService(db)
+    first = approval.decide(
+        proposal.proposal_id,
+        approve=True,
+        session_id="s1",
+        actor="operator",
+        trusted_controller=True,
+        decision_key="n8n-execution-789",
+    )
+    replay = approval.decide(
+        proposal.proposal_id,
+        approve=True,
+        session_id="s1",
+        actor="operator",
+        trusted_controller=True,
+        decision_key="n8n-execution-789",
+    )
+    assert first["audit_event_id"] == replay["audit_event_id"]
+    assert replay["idempotent_replay"] is True
+    assert len(tickets.get_ticket("INC-1042").notes) == 1
+    with pytest.raises(ApprovalError, match="already processed"):
+        approval.decide(
+            proposal.proposal_id,
+            approve=True,
+            session_id="s1",
+            actor="operator",
+            trusted_controller=True,
+            decision_key="different-execution",
+        )
+
+
 def test_rejection_never_changes_ticket_and_is_single_use(db, tickets) -> None:
     proposal = make_proposal(tickets)
     before = tickets.get_ticket("INC-1042")

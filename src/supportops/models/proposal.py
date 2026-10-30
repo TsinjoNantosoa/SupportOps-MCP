@@ -27,6 +27,13 @@ class Proposal(BaseModel):
     status: ProposalStatus
     session_id: str
     user_id: str
+    idempotency_key: str | None = None
+    correlation_id: str | None = None
+    approval_request_id: str | None = None
     created_at: datetime
     expires_at: datetime
     decided_at: datetime | None = None
+    decision_key: str | None = None
+    decided_by: str | None = None
+    decision_result: str | None = None
+    audit_event_id: int | None = None

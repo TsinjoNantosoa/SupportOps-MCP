@@ -1,0 +1,49 @@
+{
+  "name": "SupportOps 02 - Ticket Analysis",
+  "nodes": [
+    {
+      "parameters": {"inputSource": "passthrough"},
+      "id": "a2000002-0000-4000-8000-000000000001",
+      "name": "When Executed by Another Workflow",
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1.1,
+      "position": [-520, 0]
+    },
+    {
+      "parameters": {
+        "jsCode": "const id = String($json.ticket_id || '').trim().toUpperCase();\nif (!/^INC-\\d{4,}$/.test(id)) throw new Error('VALIDATION_ERROR: ticket_id must match INC-<digits>');\nreturn [{json: {...$json, ticket_id: id}}];"
+      },
+      "id": "a2000002-0000-4000-8000-000000000002",
+      "name": "Validate Ticket ID",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [-280, 0]
+    },
+    {
+      "parameters": {
+        "serverTransport": "httpStreamable",
+        "endpointUrl": "http://supportops-ticketing:8001/mcp",
+        "authentication": "none",
+        "tool": {"mode": "id", "value": "get_ticket"},
+        "inputMode": "json",
+        "jsonInput": "={{ JSON.stringify({ ticket_id: $json.ticket_id }) }}",
+        "options": {"timeout": 30000}
+      },
+      "id": "a2000002-0000-4000-8000-000000000003",
+      "name": "Get Ticket via MCP",
+      "type": "@n8n/n8n-nodes-langchain.mcpClient",
+      "typeVersion": 1.1,
+      "position": [-40, 0]
+    }
+  ],
+  "connections": {
+    "When Executed by Another Workflow": {"main": [[{"node": "Validate Ticket ID", "type": "main", "index": 0}]]},
+    "Validate Ticket ID": {"main": [[{"node": "Get Ticket via MCP", "type": "main", "index": 0}]]}
+  },
+  "pinData": {},
+  "active": false,
+  "settings": {"executionOrder": "v1"},
+  "versionId": "a2000002-0000-4000-8000-000000000099",
+  "meta": {"supportopsTargetN8n": "2.45.7"},
+  "tags": []
+}

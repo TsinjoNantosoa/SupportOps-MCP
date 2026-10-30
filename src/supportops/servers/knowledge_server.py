@@ -4,6 +4,7 @@ from mcp.server import MCPServer
 from mcp.server.mcpserver.exceptions import ToolError
 
 from supportops.config import Settings
+from supportops.servers.runtime import run_server
 from supportops.services.knowledge_service import KnowledgeService
 
 settings = Settings.load()
@@ -45,7 +46,12 @@ def procedure_resource(procedure_id: str) -> str:
 
 
 def main() -> None:
-    mcp.run(transport="stdio")
+    run_server(
+        mcp,
+        settings,
+        host=settings.knowledge_host,
+        port=settings.knowledge_port,
+    )
 
 
 if __name__ == "__main__":

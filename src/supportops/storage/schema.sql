@@ -31,9 +31,16 @@ CREATE TABLE IF NOT EXISTS ticket_update_proposals (
     status TEXT NOT NULL CHECK(status IN ('PENDING','APPROVED','REJECTED','STALE','EXPIRED')),
     session_id TEXT NOT NULL,
     user_id TEXT NOT NULL,
+    idempotency_key TEXT,
+    correlation_id TEXT,
+    approval_request_id TEXT,
     created_at TEXT NOT NULL,
     expires_at TEXT NOT NULL,
-    decided_at TEXT
+    decided_at TEXT,
+    decision_key TEXT,
+    decided_by TEXT,
+    decision_result TEXT,
+    audit_event_id INTEGER
 );
 
 CREATE TABLE IF NOT EXISTS audit_events (
@@ -50,4 +57,3 @@ CREATE TABLE IF NOT EXISTS audit_events (
 CREATE INDEX IF NOT EXISTS idx_tickets_status ON tickets(status);
 CREATE INDEX IF NOT EXISTS idx_proposals_status ON ticket_update_proposals(status);
 CREATE INDEX IF NOT EXISTS idx_audit_time ON audit_events(occurred_at);
-

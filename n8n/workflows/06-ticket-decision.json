@@ -1,0 +1,77 @@
+{
+  "name": "SupportOps 06 - Ticket Decision",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "supportops-ticket-decision",
+        "authentication": "headerAuth",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "a6000006-0000-4000-8000-000000000001",
+      "name": "Verified Human Decision Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [-520, 0],
+      "webhookId": "supportops-ticket-decision"
+    },
+    {
+      "parameters": {
+        "jsCode": "const b=$json.body || $json;\nconst proposal_id=String(b.proposal_id||'').trim();\nconst decision=String(b.decision||'').trim().toUpperCase();\nconst session_id=String(b.session_id||'').trim();\nconst approver=String(b.approver||'').trim();\nconst decision_key=String(b.decision_key||$execution.id||'').trim();\nif(!/^PROP-[A-F0-9]{12}$/.test(proposal_id)) throw new Error('VALIDATION_ERROR: invalid proposal_id');\nif(!['APPROVE','REJECT'].includes(decision)) throw new Error('VALIDATION_ERROR: invalid decision');\nif(!session_id||!approver||!decision_key) throw new Error('VALIDATION_ERROR: missing trusted decision context');\nreturn [{json:{proposal_id,decision,session_id,approver,decision_key}}];"
+      },
+      "id": "a6000006-0000-4000-8000-000000000002",
+      "name": "Validate Trusted Decision Input",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [-280, 0]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=http://supportops-approval:8010/proposals/{{ $json.proposal_id }}/decision",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {"name": "X-SupportOps-Approver", "value": "={{ $json.approver }}"}
+          ]
+        },
+        "sendBody": true,
+        "contentType": "raw",
+        "rawContentType": "application/json",
+        "body": "={{ JSON.stringify({decision:$json.decision,session_id:$json.session_id,decision_key:$json.decision_key}) }}",
+        "options": {"timeout": 10000}
+      },
+      "id": "a6000006-0000-4000-8000-000000000003",
+      "name": "Call Trusted Approval Service",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [-40, 0]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({proposal_id:$json.proposal_id,status:$json.status,ticket_changed:$json.ticket_changed,idempotent_replay:$json.idempotent_replay,audit_event_id:$json.audit_event_id}) }}",
+        "options": {}
+      },
+      "id": "a6000006-0000-4000-8000-000000000004",
+      "name": "Return Decision Result",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.5,
+      "position": [200, 0]
+    }
+  ],
+  "connections": {
+    "Verified Human Decision Webhook": {"main": [[{"node": "Validate Trusted Decision Input", "type": "main", "index": 0}]]},
+    "Validate Trusted Decision Input": {"main": [[{"node": "Call Trusted Approval Service", "type": "main", "index": 0}]]},
+    "Call Trusted Approval Service": {"main": [[{"node": "Return Decision Result", "type": "main", "index": 0}]]}
+  },
+  "pinData": {},
+  "active": false,
+  "settings": {"executionOrder": "v1"},
+  "versionId": "a6000006-0000-4000-8000-000000000099",
+  "meta": {"templateCredsSetupCompleted": false, "supportopsTargetN8n": "2.45.7"},
+  "tags": []
+}

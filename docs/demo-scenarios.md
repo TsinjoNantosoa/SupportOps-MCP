@@ -1,10 +1,11 @@
-# Reproducible demo scenarios
+# V2 demonstration scenarios
 
-1. Ticket analysis: ask `Analyze ticket INC-1042.` Expect `get_ticket`, observed facts, source `INC-1042`, and no mutation.
-2. Knowledge retrieval: ask `What is the procedure for an Outlook sending issue?` Expect lexical search/retrieval and source `outlook-send-failure.md`.
-3. Cross-server reasoning: ask `Analyze INC-1042 and recommend troubleshooting steps using the knowledge base.` Expect calls to both servers and separated facts/hypotheses.
-4. Human approval: ask the agent to prepare a note, inspect `supportops proposals`, then run `supportops approve <id>` and confirm. Expect one note/version change and an audit event.
-5. Rejection: prepare another proposal, run `supportops reject <id>`, and confirm. Expect no ticket change and a rejection audit event.
+1. **Ticket analysis:** workflow 02 validates `INC-1042` and calls `get_ticket` with standalone MCP Client. No mutation.
+2. **Knowledge retrieval:** workflow 03 searches `Outlook sending issue`, returns allowlisted references, and explicitly handles no match.
+3. **Cross-server diagnosis:** workflow 04 calls both MCP servers, then validates a structured facts/hypotheses/checks/sources schema.
+4. **Create proposal:** the main agent calls `prepare_ticket_update` with an n8n execution idempotency key. The ticket remains unchanged.
+5. **Human approval:** workflow 05 presents exact fields. The trusted CLI, or deliberately enabled workflow 06, applies one atomic update and returns an audit ID.
+6. **Human rejection:** the same review path records REJECTED and leaves the ticket unchanged.
+7. **Security and reliability:** repeat a creation key, decision key, ordinary double approval, expired proposal, stale version, forged approver, prompt injection fixture, bearer denial, and unavailable MCP server.
 
-Run approval on an already handled ID to verify single use. The escalation procedure contains an explicit fictional hostile-instruction warning; tests ensure it is returned as untrusted source data and never becomes an approval path.
-
+The deterministic Python and Docker portions are tested. n8n UI import, OpenAI synthesis, Wait resume, and live end-to-end n8n execution remain **NON VÉRIFIÉ**.

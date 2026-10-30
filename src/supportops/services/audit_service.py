@@ -16,8 +16,8 @@ def record_audit(
     target_id: str,
     outcome: str,
     details: dict[str, object],
-) -> None:
-    connection.execute(
+) -> int:
+    cursor = connection.execute(
         """INSERT INTO audit_events
         (occurred_at,actor,action,target_type,target_id,outcome,details)
         VALUES (?,?,?,?,?,?,?)""",
@@ -31,6 +31,9 @@ def record_audit(
             json.dumps(details, sort_keys=True),
         ),
     )
+    if cursor.lastrowid is None:
+        raise RuntimeError("Audit event identifier was not generated")
+    return int(cursor.lastrowid)
 
 
 def list_audit(db: Database, limit: int = 100) -> list[dict[str, object]]:

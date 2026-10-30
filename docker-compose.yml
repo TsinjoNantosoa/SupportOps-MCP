@@ -1,0 +1,69 @@
+services:
+  supportops-ticketing:
+    build: .
+    command: ["supportops-ticketing"]
+    environment:
+      SUPPORTOPS_MCP_TRANSPORT: streamable-http
+      SUPPORTOPS_TICKETING_HOST: 0.0.0.0
+      SUPPORTOPS_TICKETING_PORT: 8001
+      SUPPORTOPS_DB_PATH: /data/supportops.db
+      SUPPORTOPS_SESSION_ID: n8n-demo
+      SUPPORTOPS_USER: n8n-host
+      SUPPORTOPS_ALLOWED_HOSTS: supportops-ticketing:8001,localhost:8001,127.0.0.1:8001
+      SUPPORTOPS_ALLOWED_ORIGINS: http://localhost:5678
+      SUPPORTOPS_MCP_BEARER_TOKEN: ${SUPPORTOPS_MCP_BEARER_TOKEN:-}
+    volumes:
+      - supportops-data:/data
+    ports:
+      - "127.0.0.1:8001:8001"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import socket;s=socket.create_connection(('127.0.0.1',8001),2);s.close()"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+    restart: unless-stopped
+
+  supportops-knowledge:
+    build: .
+    command: ["supportops-knowledge"]
+    environment:
+      SUPPORTOPS_MCP_TRANSPORT: streamable-http
+      SUPPORTOPS_KNOWLEDGE_HOST: 0.0.0.0
+      SUPPORTOPS_KNOWLEDGE_PORT: 8002
+      SUPPORTOPS_KNOWLEDGE_DIR: /app/knowledge
+      SUPPORTOPS_ALLOWED_HOSTS: supportops-knowledge:8002,localhost:8002,127.0.0.1:8002
+      SUPPORTOPS_ALLOWED_ORIGINS: http://localhost:5678
+      SUPPORTOPS_MCP_BEARER_TOKEN: ${SUPPORTOPS_MCP_BEARER_TOKEN:-}
+    ports:
+      - "127.0.0.1:8002:8002"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import socket;s=socket.create_connection(('127.0.0.1',8002),2);s.close()"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+    restart: unless-stopped
+
+  supportops-approval:
+    build: .
+    command: ["supportops-approval-api"]
+    environment:
+      SUPPORTOPS_APPROVAL_HOST: 0.0.0.0
+      SUPPORTOPS_APPROVAL_PORT: 8010
+      SUPPORTOPS_DB_PATH: /data/supportops.db
+      SUPPORTOPS_APPROVAL_API_TOKEN: ${SUPPORTOPS_APPROVAL_API_TOKEN:-}
+      SUPPORTOPS_REMOTE_APPROVAL_ENABLED: ${SUPPORTOPS_REMOTE_APPROVAL_ENABLED:-false}
+      SUPPORTOPS_AUTHORIZED_APPROVERS: ${SUPPORTOPS_AUTHORIZED_APPROVERS:-}
+      SUPPORTOPS_APPROVAL_ALLOWED_HOSTS: supportops-approval,localhost,127.0.0.1
+    volumes:
+      - supportops-data:/data
+    ports:
+      - "127.0.0.1:8010:8010"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request;urllib.request.urlopen('http://127.0.0.1:8010/health',timeout=2)"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+    restart: unless-stopped
+
+volumes:
+  supportops-data:

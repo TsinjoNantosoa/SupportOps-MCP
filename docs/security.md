@@ -1,8 +1,7 @@
-# Security review
+# Security summary
 
-Trust boundaries are enforced in code: MCP input is untrusted; tool output is untrusted agent context; approval is a host-only operation. SQLite statements are parameterized. File access uses an identifier-to-filename allowlist plus resolved parent verification. Proposal identity comes from the host process environment, not a model argument.
+MCP tools use least privilege, typed validation, parameterized SQL, allowlisted files, bounded results, and structured errors. HTTP uses loopback defaults, SDK DNS-rebinding protection, explicit Hosts/Origins, body/session limits, and optional bearer authentication. Tool results remain untrusted model context.
 
-Approval uses `BEGIN IMMEDIATE`, validates `PENDING`, session, expiry, and captured ticket version, updates the ticket with a version predicate, marks the proposal exactly once, and writes the audit event in the same transaction. The agent has no approval tool.
+Proposal and decision retries are idempotent only when their exact keys and payload/outcome match. Ticket version predicates, `BEGIN IMMEDIATE`, single-use states, and same-transaction audit prevent duplicate or stale application. The LLM receives no approval capability.
 
-Local stdio reduces network exposure but is not a process sandbox. Local environment identity is demonstration-only. A remote design needs authenticated Streamable HTTP, TLS, token audience validation, origin and host checks, per-tool authorization, rate limiting, dependency/schema integrity monitoring, and centralized redacted audit logs.
-
+Remote approval is disabled by default. The optional isolated-demo API does not replace enterprise identity. Local subprocesses are not OS sandboxes, bearer tokens require secret management and TLS outside loopback, SQLite is single-host storage, and n8n execution data must be configured to avoid retaining sensitive prompts.

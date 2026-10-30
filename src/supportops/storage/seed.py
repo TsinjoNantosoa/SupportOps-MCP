@@ -4,6 +4,7 @@ from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 from supportops.storage.database import Database
+from supportops.storage.migrations import migrate_database
 
 SEED_TICKETS = [
     (
@@ -88,6 +89,7 @@ def initialize_database(path: Path, *, reset: bool = False) -> Database:
         path.unlink()
     schema_path = Path(__file__).with_name("schema.sql")
     db.initialize(schema_path)
+    migrate_database(db)
     now = datetime(2026, 1, 15, 9, 0, tzinfo=UTC)
     with db.transaction(immediate=True) as connection:
         count = connection.execute("SELECT COUNT(*) FROM tickets").fetchone()[0]
