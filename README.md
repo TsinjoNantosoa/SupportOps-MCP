@@ -1,8 +1,10 @@
-# SupportOps MCP — n8n AI Helpdesk Automation Platform
+# SupportOps MCP V2.2 — n8n AI Helpdesk Automation Platform
 
 SupportOps is a portfolio-grade local demonstration of hybrid AI automation. n8n orchestrates an OpenAI agent and deterministic workflows; two real Python MCP servers provide fictional tickets and allowlisted IT procedures; Python retains transactional authority for proposals, human decisions, and audit.
 
 All data is fictional. The project connects to no real ticketing, Microsoft 365, identity, Windows, or network environment and is not represented as deployed for customers.
+
+V2.2 hardens the existing V2.1 implementation: no key is kept in the example configuration, agent instructions require source-backed answers, and an idempotent approval retry is bound to the original session and actor. The current audit is honest about what is and is not live in this workstation; see [docs/v2.2-release-report.md](docs/v2.2-release-report.md).
 
 ## Architecture
 
@@ -62,13 +64,13 @@ Seven importable exports are under `n8n/workflows`:
 | 06 Ticket Decision | Authenticated webhook calling the trusted approval API |
 | 07 Error Monitoring | Redacted error classification and execution correlation |
 
-They target **n8n 2.45.7**. All seven exports were imported and listed successfully in an isolated instance of that exact version. A runtime-only workflow also called both MCP servers from n8n and returned `INC-1042` plus `outlook-send-failure.md`. OpenAI, Wait/resume, and every production workflow path remain separately classified in the V2.1 report. See [n8n/README.md](n8n/README.md).
+They target **n8n 2.45.7** and are intentionally inactive exports without credentials. During the current audit, all seven were imported into an isolated local instance at `http://localhost:5681`; workflow execution and OpenAI remain **NON VÉRIFIÉS**. See [n8n/README.md](n8n/README.md) and [docs/v2.2-n8n-integration.md](docs/v2.2-n8n-integration.md).
 
 ## Human approval and reliability
 
 Proposal preparation records the exact change, session, host identity, ticket version, expiry, correlation ID, and optional idempotency key. Retrying the same key/payload returns the original proposal; changed payloads are rejected.
 
-The trusted controller performs a SQLite `BEGIN IMMEDIATE` transaction, verifies PENDING state, session, expiry, authorization, and ticket version, then writes the note, increments the ticket version, updates the proposal, and records an audit event atomically. A matching decision retry key returns the original audit ID without applying twice. Ordinary double decisions remain conflicts.
+The trusted controller performs a SQLite `BEGIN IMMEDIATE` transaction, verifies PENDING state, session, expiry, authorization, and ticket version, then writes the note, increments the ticket version, updates the proposal, and records an audit event atomically. A matching decision retry key returns the original audit ID without applying twice, but only for the original actor and session. Ordinary double decisions and cross-identity replays remain conflicts.
 
 Remote decisions are disabled by default. The local CLI is the recommended MVP approval path:
 
@@ -147,6 +149,8 @@ The three services publish ports to host loopback only. The SQLite volume is cen
 9. Test `INC-1042`, then a PENDING proposal, rejection, approval, retry, expiry, and stale version.
 10. Inspect `uv run supportops audit` and n8n execution logs.
 
+Open the n8n UI at `http://localhost:5678` only after confirming that port belongs to this local instance. If it is occupied, publish an isolated SupportOps n8n container on another loopback port such as `http://localhost:5681`; do not connect to an unrelated existing n8n instance.
+
 The model values in exports are n8n node defaults, not availability guarantees. No API key is stored in source or workflow JSON.
 
 ## OpenAI Python CLI agent
@@ -164,15 +168,15 @@ No model is hard-coded when `OPENAI_MODEL` is empty. A live OpenAI request was n
 ## Verified results
 
 ```text
-uv run pytest                                  35 passed
-uv run ruff check .                            All checks passed
-uv run python n8n/tests/validate_workflows.py  7 valid JSON graphs
+python -m pytest                               38 passed (current audit)
+ruff check .                                   All checks passed (current audit)
+python n8n/tests/validate_workflows.py         7 valid JSON graphs
 docker compose config --quiet                  passed
-docker compose build                           passed
-Docker health                                  3/3 healthy
+OpenAI live / n8n browser E2E                  NON VÉRIFIÉ
+Compose runtime                               3/3 healthy; MCP Docker E2E PASS
 ```
 
-Docker-host MCP clients discovered both tool sets, retrieved `INC-1042`, found the Outlook procedure, and observed remote decisions disabled. n8n 2.45.7 imported all exports and directly exercised both MCP services. Stdio regression tests also pass.
+The Python integration suite and current Docker stack discover both tool sets, retrieve `INC-1042`, find the Outlook procedure, create a PENDING proposal, apply a trusted local decision and verify audit/idempotency. No OpenAI request was launched because no key or n8n credential was available.
 
 ## Security boundaries
 
@@ -205,3 +209,13 @@ Remote approval now separates the n8n service credential from individual approve
 - [V2.1 E2E testing](docs/v2.1-e2e-testing.md)
 - [V2.1 demo guide](docs/v2.1-demo-guide.md)
 - [V2.1 release report](docs/v2.1-release-report.md)
+- [V2.2 audit](docs/v2.2-audit.md)
+- [V2.2 architecture](docs/v2.2-architecture.md)
+- [V2.2 OpenAI setup](docs/v2.2-openai-setup.md)
+- [V2.2 n8n integration](docs/v2.2-n8n-integration.md)
+- [V2.2 security review](docs/v2.2-security-review.md)
+- [V2.2 E2E testing](docs/v2.2-e2e-testing.md)
+- [V2.2 demo guide](docs/v2.2-demo-guide.md)
+- [V2.2 release report](docs/v2.2-release-report.md)
+- [V2.2 portfolio presentation — français](docs/presentation-v2.2-fr.md)
+- [V2.2 portfolio presentation — English](docs/presentation-en.md)

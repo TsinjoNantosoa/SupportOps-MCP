@@ -1,6 +1,6 @@
 # SupportOps n8n workflows
 
-These seven exports target **n8n 2.45.7**. Node names, versions, parameters, and the actual MCP Client `structuredContent` output were checked against the packaged implementations on 2026-10-30. All seven files were imported and listed in an isolated n8n 2.45.7 database. The runtime fixture under `tests/runtime/` then called both MCP servers successfully from n8n.
+These seven exports target **n8n 2.45.7**. Node names, versions, parameters, and the actual MCP Client `structuredContent` output were checked against the packaged implementations on 2026-10-30. The V2.1 report records an isolated import and runtime fixture; a fresh import and browser execution in the current V2.2 workstation are **NON VÉRIFIÉS**.
 
 ## Import order
 

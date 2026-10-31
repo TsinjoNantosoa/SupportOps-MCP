@@ -46,15 +46,30 @@ class ApprovalService:
                     and proposal["decision_key"] == decision_key
                     and proposal["status"] == expected
                 ):
-                    return {
-                        "proposal_id": proposal_id,
-                        "status": expected,
-                        "ticket_changed": expected == "APPROVED",
-                        "idempotent_replay": True,
-                        "audit_event_id": proposal["audit_event_id"],
-                    }
-                raise ApprovalError(f"Proposal already processed with status {proposal['status']}")
-            if proposal["session_id"] != session_id:
+                    if proposal["session_id"] != session_id or proposal["decided_by"] != actor:
+                        self._audit_denial(
+                            connection, actor, proposal_id, "IDEMPOTENCY_IDENTITY_MISMATCH"
+                        )
+                        deferred_error = PermissionError(
+                            "Decision replay belongs to another session or actor"
+                        )
+                    else:
+                        result = {
+                            "proposal_id": proposal_id,
+                            "status": expected,
+                            "ticket_changed": expected == "APPROVED",
+                            "idempotent_replay": True,
+                            "audit_event_id": proposal["audit_event_id"],
+                        }
+                else:
+                    raise ApprovalError(
+                        f"Proposal already processed with status {proposal['status']}"
+                    )
+            if proposal["status"] != "PENDING":
+                # A completed proposal is handled only by the replay branch above.
+                # Never run expiry or ticket mutation logic again on a replay.
+                pass
+            elif proposal["session_id"] != session_id:
                 self._audit_denial(connection, actor, proposal_id, "SESSION_MISMATCH")
                 deferred_error = PermissionError("Proposal belongs to another session")
             elif datetime.fromisoformat(proposal["expires_at"]) <= now:

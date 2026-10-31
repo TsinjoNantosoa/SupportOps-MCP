@@ -127,7 +127,7 @@ def validate_workflow(path: Path) -> None:
 def main() -> None:
     files = sorted(WORKFLOW_DIR.glob("*.json"))
     if {path.name for path in files} != EXPECTED_FILES:
-        raise SystemExit("Workflow file set does not match the V2.1 contract")
+        raise SystemExit("Workflow file set does not match the V2.2 contract")
     try:
         for path in files:
             validate_workflow(path)

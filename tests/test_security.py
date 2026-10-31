@@ -1,7 +1,15 @@
 from __future__ import annotations
 
+import re
+from pathlib import Path
+
 from supportops.services.approval_service import ApprovalService
 from supportops.services.ticket_service import UpdateRequest
+
+
+def test_env_example_contains_no_real_openai_key() -> None:
+    env_example = Path(__file__).parents[1] / ".env.example"
+    assert not re.search(r"(?i)sk-[A-Za-z0-9_-]{20,}", env_example.read_text())
 
 
 def test_llm_cannot_self_approve(db, tickets) -> None:

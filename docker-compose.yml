@@ -19,8 +19,9 @@ services:
     healthcheck:
       test: ["CMD", "python", "-c", "import socket;s=socket.create_connection(('127.0.0.1',8001),2);s.close()"]
       interval: 10s
-      timeout: 3s
+      timeout: 10s
       retries: 5
+      start_period: 15s
     restart: unless-stopped
 
   supportops-knowledge:
@@ -39,8 +40,9 @@ services:
     healthcheck:
       test: ["CMD", "python", "-c", "import socket;s=socket.create_connection(('127.0.0.1',8002),2);s.close()"]
       interval: 10s
-      timeout: 3s
+      timeout: 10s
       retries: 5
+      start_period: 15s
     restart: unless-stopped
 
   supportops-approval:
@@ -61,8 +63,9 @@ services:
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request;urllib.request.urlopen('http://127.0.0.1:8010/health',timeout=2)"]
       interval: 10s
-      timeout: 3s
+      timeout: 10s
       retries: 5
+      start_period: 15s
     restart: unless-stopped
 
 volumes:

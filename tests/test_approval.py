@@ -82,6 +82,37 @@ def test_decision_retry_key_is_idempotent_but_new_double_approval_is_refused(db,
         )
 
 
+@pytest.mark.parametrize(
+    ("session_id", "actor"),
+    [("intruder-session", "operator"), ("s1", "different-operator")],
+)
+def test_decision_retry_key_cannot_be_replayed_by_another_identity(
+    db, tickets, session_id: str, actor: str
+) -> None:
+    proposal = make_proposal(tickets)
+    approval = ApprovalService(db)
+    approval.decide(
+        proposal.proposal_id,
+        approve=True,
+        session_id="s1",
+        actor="operator",
+        trusted_controller=True,
+        decision_key="n8n-execution-identity-bound",
+    )
+
+    with pytest.raises(PermissionError, match="another session or actor"):
+        approval.decide(
+            proposal.proposal_id,
+            approve=True,
+            session_id=session_id,
+            actor=actor,
+            trusted_controller=True,
+            decision_key="n8n-execution-identity-bound",
+        )
+
+    assert len(tickets.get_ticket("INC-1042").notes) == 1
+
+
 def test_rejection_never_changes_ticket_and_is_single_use(db, tickets) -> None:
     proposal = make_proposal(tickets)
     before = tickets.get_ticket("INC-1042")
