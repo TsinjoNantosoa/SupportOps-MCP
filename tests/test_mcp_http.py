@@ -15,6 +15,7 @@ import httpx2
 import pytest
 from mcp import Client
 from mcp.client.streamable_http import streamable_http_client
+from mcp.shared.exceptions import MCPError
 
 
 def free_port() -> int:
@@ -30,6 +31,7 @@ def http_server(
     port: int,
     *,
     token: str | None = None,
+    max_body_size: int = 1_048_576,
 ) -> Iterator[str]:
     env = os.environ.copy()
     env.update(
@@ -43,6 +45,7 @@ def http_server(
             "SUPPORTOPS_ALLOWED_HOSTS": f"127.0.0.1:{port},localhost:{port}",
             "SUPPORTOPS_ALLOWED_ORIGINS": "http://localhost:5678",
             "SUPPORTOPS_MCP_BEARER_TOKEN": token or "",
+            "SUPPORTOPS_MAX_REQUEST_BODY_SIZE": str(max_body_size),
         }
     )
     process = subprocess.Popen(
@@ -100,8 +103,66 @@ async def test_streamable_http_bearer_authentication(tmp_path) -> None:
             urlopen(request, timeout=3)
         assert denied.value.code == 401
 
+        wrong = Request(
+            url,
+            data=b"{}",
+            method="POST",
+            headers={"Authorization": "Bearer wrong-secret"},
+        )
+        with pytest.raises(HTTPError) as invalid:
+            urlopen(wrong, timeout=3)
+        assert invalid.value.code == 401
+
         async with httpx2.AsyncClient(headers={"Authorization": "Bearer test-secret"}) as http:
             transport = streamable_http_client(url, http_client=http)
             async with Client(transport, read_timeout_seconds=10) as client:
                 result = await client.call_tool("get_ticket", {"ticket_id": "INC-1042"})
                 assert result.structured_content["ticket_id"] == "INC-1042"
+
+
+def test_streamable_http_rejects_host_origin_and_oversized_body(tmp_path) -> None:
+    port = free_port()
+    with http_server(
+        "supportops.servers.ticketing_server",
+        tmp_path,
+        port,
+        token="test-secret",
+        max_body_size=128,
+    ) as url:
+        base_headers = {
+            "Authorization": "Bearer test-secret",
+            "Content-Type": "application/json",
+        }
+        bad_host = Request(
+            url,
+            data=b"{}",
+            method="POST",
+            headers={**base_headers, "Host": "attacker.invalid"},
+        )
+        with pytest.raises(HTTPError) as host_denied:
+            urlopen(bad_host, timeout=3)
+        assert host_denied.value.code in {400, 403, 421}
+
+        bad_origin = Request(
+            url,
+            data=b"{}",
+            method="POST",
+            headers={**base_headers, "Origin": "https://attacker.invalid"},
+        )
+        with pytest.raises(HTTPError) as origin_denied:
+            urlopen(bad_origin, timeout=3)
+        assert origin_denied.value.code in {400, 403, 421}
+
+        oversized = Request(url, data=b"x" * 256, method="POST", headers=base_headers)
+        with pytest.raises(HTTPError) as too_large:
+            urlopen(oversized, timeout=3)
+        assert too_large.value.code == 413
+
+
+@pytest.mark.asyncio
+async def test_unknown_knowledge_resource_over_http_is_structured_error(tmp_path) -> None:
+    port = free_port()
+    with http_server("supportops.servers.knowledge_server", tmp_path, port) as url:
+        async with Client(url, read_timeout_seconds=10) as client:
+            with pytest.raises(MCPError):
+                await client.read_resource("supportops://knowledge/not-allowlisted")

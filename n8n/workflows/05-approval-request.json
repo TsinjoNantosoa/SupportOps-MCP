@@ -34,7 +34,7 @@
     },
     {
       "parameters": {
-        "jsCode": "const p=$json;\nreturn [{json:{approval_request:{proposal_id:p.proposal_id,ticket_id:p.ticket_id,proposed_note:p.proposed_note,proposed_status:p.proposed_status,reason:p.reason,ticket_version:p.ticket_version,expires_at:p.expires_at},instruction:'Review every field, then POST an explicit decision to the resume URL. This workflow never changes the ticket.'}}];"
+        "jsCode": "const p=$json;\nif(p.status!=='PENDING') throw new Error(`APPROVAL_DENIED: proposal is ${p.status}`);\nreturn [{json:{approval_request:{proposal_id:p.proposal_id,ticket_id:p.ticket_id,proposed_note:p.proposed_note,proposed_status:p.proposed_status,reason:p.reason,ticket_version:p.ticket_version,expires_at:p.expires_at,correlation_id:p.correlation_id},trusted_context:{proposal_id:p.proposal_id,session_id:p.session_id,ticket_version:p.ticket_version,correlation_id:p.correlation_id},instruction:'Review every field. The Wait response records review intent only; it is not authentication and cannot apply the ticket change.'}}];"
       },
       "id": "a5000005-0000-4000-8000-000000000004",
       "name": "Present Exact Changes",
@@ -58,7 +58,7 @@
     },
     {
       "parameters": {
-        "jsCode": "const decision=String($json.body?.decision || $json.decision || '').toUpperCase();\nif (!['APPROVE','REJECT'].includes(decision)) throw new Error('VALIDATION_ERROR: decision must be APPROVE or REJECT');\nreturn [{json:{...$json,decision,review_only:true,message:'Decision captured. Use workflow 06 or trusted CLI to request the controlled transaction.'}}];"
+        "jsCode": "const decision=String($json.body?.decision || $json.decision || '').toUpperCase();\nif (!['APPROVE','REJECT'].includes(decision)) throw new Error('VALIDATION_ERROR: decision must be APPROVE or REJECT');\nconst original=$node['Present Exact Changes'].json;\nreturn [{json:{proposal_id:original.trusted_context.proposal_id,decision,review_intent_recorded:true,remote_application_allowed:false,message:'Review intent captured but not applied. Use the trusted local CLI, or separately invoke workflow 06 through its authenticated webhook after configuring an individual approver credential.'}}];"
       },
       "id": "a5000005-0000-4000-8000-000000000006",
       "name": "Validate Human Decision",
@@ -78,6 +78,7 @@
   "active": false,
   "settings": {"executionOrder": "v1"},
   "versionId": "a5000005-0000-4000-8000-000000000099",
+  "id": "a5000005-0000-4000-8000-000000000099",
   "meta": {"templateCredsSetupCompleted": false, "supportopsTargetN8n": "2.45.7"},
   "tags": []
 }

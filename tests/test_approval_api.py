@@ -37,7 +37,9 @@ def approval_api(tmp_path: Path, *, enabled: bool) -> Iterator[tuple[str, Ticket
             "SUPPORTOPS_APPROVAL_PORT": str(port),
             "SUPPORTOPS_APPROVAL_API_TOKEN": "approval-test-token",
             "SUPPORTOPS_REMOTE_APPROVAL_ENABLED": str(enabled).lower(),
-            "SUPPORTOPS_AUTHORIZED_APPROVERS": "alice",
+            "SUPPORTOPS_APPROVER_TOKENS_JSON": json.dumps(
+                {"alice": "alice-individual-token"}
+            ),
         }
     )
     process = subprocess.Popen(
@@ -81,11 +83,12 @@ def request_json(
     *,
     method: str = "GET",
     body: dict[str, object] | None = None,
-    approver: str | None = None,
+    auth_token: str = "approval-test-token",
+    extra_headers: dict[str, str] | None = None,
 ) -> dict[str, object]:
-    headers = {"Authorization": "Bearer approval-test-token"}
-    if approver:
-        headers["X-SupportOps-Approver"] = approver
+    headers = {"Authorization": f"Bearer {auth_token}"}
+    if extra_headers:
+        headers.update(extra_headers)
     data = json.dumps(body).encode() if body else None
     if data:
         headers["Content-Type"] = "application/json"
@@ -107,7 +110,7 @@ def test_remote_decisions_are_disabled_by_default(tmp_path) -> None:
                     "session_id": "n8n-session",
                     "decision_key": "exec-disabled",
                 },
-                approver="alice",
+                auth_token="alice-individual-token",
             )
         assert denied.value.code == 403
         assert tickets.get_ticket("INC-1042").notes == []
@@ -123,11 +126,44 @@ def test_authorized_remote_decision_and_retry_are_idempotent(tmp_path) -> None:
             "decision_key": "n8n-execution-42",
         }
         with pytest.raises(HTTPError) as forged:
-            request_json(url, method="POST", body=body, approver="mallory")
-        assert forged.value.code == 403
+            request_json(
+                url,
+                method="POST",
+                body=body,
+                auth_token="approval-test-token",
+                extra_headers={"X-SupportOps-Approver": "alice"},
+            )
+        assert forged.value.code == 401
 
-        first = request_json(url, method="POST", body=body, approver="alice")
-        replay = request_json(url, method="POST", body=body, approver="alice")
+        first = request_json(
+            url, method="POST", body=body, auth_token="alice-individual-token"
+        )
+        replay = request_json(
+            url, method="POST", body=body, auth_token="alice-individual-token"
+        )
         assert first["audit_event_id"] == replay["audit_event_id"]
         assert replay["idempotent_replay"] is True
         assert len(tickets.get_ticket("INC-1042").notes) == 1
+
+
+def test_redacted_workflow_error_is_persisted_without_raw_message(tmp_path) -> None:
+    with approval_api(tmp_path, enabled=False) as (base_url, tickets):
+        result = request_json(
+            f"{base_url}/events/errors",
+            method="POST",
+            body={
+                "execution_id": "exec-123",
+                "workflow_id": "wf-07",
+                "correlation_id": "corr-456",
+                "error_code": "MCP_TIMEOUT",
+                "occurred_at": "2026-10-30T10:00:00Z",
+                "status": "FAILED",
+            },
+        )
+        assert result["recorded"] is True
+        with tickets.db.connect() as connection:
+            row = connection.execute(
+                "SELECT * FROM audit_events WHERE event_id=?", (result["audit_event_id"],)
+            ).fetchone()
+        assert row["outcome"] == "MCP_TIMEOUT"
+        assert "message" not in row["details"].lower()

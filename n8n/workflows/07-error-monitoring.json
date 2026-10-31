@@ -11,22 +11,42 @@
     },
     {
       "parameters": {
-        "jsCode": "const e=$json.execution||{};\nconst w=$json.workflow||{};\nconst message=String(e.error?.message||$json.error?.message||'Unknown error');\nlet category='WORKFLOW_ERROR';\nif(/MCP/i.test(message)) category='MCP_ERROR';\nelse if(/timeout/i.test(message)) category='TIMEOUT';\nelse if(/validation/i.test(message)) category='VALIDATION_ERROR';\nelse if(/expired/i.test(message)) category='PROPOSAL_EXPIRED';\nelse if(/unauthor|forbidden|permission/i.test(message)) category='AUTHORIZATION_ERROR';\nelse if(/stale|version|conflict/i.test(message)) category='VERSION_CONFLICT';\nelse if(/sqlite|database|storage/i.test(message)) category='STORAGE_ERROR';\nelse if(/model|openai|llm/i.test(message)) category='MODEL_ERROR';\nreturn [{json:{occurred_at:new Date().toISOString(),workflow_id:w.id||null,workflow_name:w.name||null,execution_id:e.id||null,category,error_name:e.error?.name||null,safe_message:message.slice(0,500),note:'Prompt bodies, credentials, headers, and full model responses are intentionally omitted.'}}];"
+        "jsCode": "const e=$json.execution||{};\nconst w=$json.workflow||{};\nconst message=String(e.error?.message||$json.error?.message||'');\nlet error_code='WORKFLOW_ERROR';\nif(/MCP.*(connect|unavailable|refused)/i.test(message)) error_code='MCP_CONNECTION_ERROR';\nelse if(/MCP.*timeout|timeout.*MCP/i.test(message)) error_code='MCP_TIMEOUT';\nelse if(/openai|model|llm/i.test(message)) error_code='OPENAI_ERROR';\nelse if(/validation/i.test(message)) error_code='VALIDATION_ERROR';\nelse if(/denied|unauthor|forbidden|permission/i.test(message)) error_code='APPROVAL_DENIED';\nelse if(/expired/i.test(message)) error_code='EXPIRED_PROPOSAL';\nelse if(/stale|version|conflict/i.test(message)) error_code='STALE_PROPOSAL';\nelse if(/sqlite|database|storage/i.test(message)) error_code='DATABASE_ERROR';\nconst execution_id=String(e.id||$execution.id||'unknown').replace(/[^A-Za-z0-9._:-]/g,'_').slice(0,200);\nconst workflow_id=w.id?String(w.id).replace(/[^A-Za-z0-9._:-]/g,'_').slice(0,200):null;\nconst correlation_id=$json.correlation_id?String($json.correlation_id).replace(/[^A-Za-z0-9._:-]/g,'_').slice(0,200):null;\nreturn [{json:{occurred_at:new Date().toISOString(),workflow_id,execution_id,correlation_id,error_code,status:'FAILED'}}];"
       },
       "id": "a7000007-0000-4000-8000-000000000002",
       "name": "Classify and Redact Error",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [-80, 0]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://supportops-approval:8010/events/errors",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "contentType": "raw",
+        "rawContentType": "application/json",
+        "body": "={{ JSON.stringify($json) }}",
+        "options": {"timeout": 10000}
+      },
+      "id": "a7000007-0000-4000-8000-000000000003",
+      "name": "Persist Redacted Error Event",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [180, 0]
     }
   ],
   "connections": {
-    "On Workflow Error": {"main": [[{"node": "Classify and Redact Error", "type": "main", "index": 0}]]}
+    "On Workflow Error": {"main": [[{"node": "Classify and Redact Error", "type": "main", "index": 0}]]},
+    "Classify and Redact Error": {"main": [[{"node": "Persist Redacted Error Event", "type": "main", "index": 0}]]}
   },
   "pinData": {},
   "active": false,
   "settings": {"executionOrder": "v1"},
   "versionId": "a7000007-0000-4000-8000-000000000099",
+  "id": "a7000007-0000-4000-8000-000000000099",
   "meta": {"supportopsTargetN8n": "2.45.7"},
   "tags": []
 }

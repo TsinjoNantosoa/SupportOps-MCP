@@ -62,7 +62,7 @@ Seven importable exports are under `n8n/workflows`:
 | 06 Ticket Decision | Authenticated webhook calling the trusted approval API |
 | 07 Error Monitoring | Redacted error classification and execution correlation |
 
-They target **n8n 2.45.7**. JSON syntax, node roles, graph references, credential absence, and tool separation are tested. Import and execution on a live n8n instance are **NON VÉRIFIÉ** in this environment because an ephemeral n8n installation timed out. See [n8n/README.md](n8n/README.md).
+They target **n8n 2.45.7**. All seven exports were imported and listed successfully in an isolated instance of that exact version. A runtime-only workflow also called both MCP servers from n8n and returned `INC-1042` plus `outlook-send-failure.md`. OpenAI, Wait/resume, and every production workflow path remain separately classified in the V2.1 report. See [n8n/README.md](n8n/README.md).
 
 ## Human approval and reliability
 
@@ -141,7 +141,7 @@ The three services publish ports to host loopback only. The SQLite volume is cen
 3. Replace endpoints for your host/network layout.
 4. Create an OpenAI credential; select a tool-capable model actually available to it.
 5. If MCP bearer auth is enabled, select Bearer Auth on all MCP nodes.
-6. Configure HTTP Header Auth for the approval API and decision webhook.
+6. Create separate HTTP credentials for the n8n service, an individual approver, and the decision webhook.
 7. Keep remote decisions disabled and use the CLI unless isolated-demo authorization is deliberately configured.
 8. Test workflow 02 and 03 before enabling the AI Agent.
 9. Test `INC-1042`, then a PENDING proposal, rejection, approval, retry, expiry, and stale version.
@@ -164,7 +164,7 @@ No model is hard-coded when `OPENAI_MODEL` is empty. A live OpenAI request was n
 ## Verified results
 
 ```text
-uv run pytest                                  28 passed
+uv run pytest                                  35 passed
 uv run ruff check .                            All checks passed
 uv run python n8n/tests/validate_workflows.py  7 valid JSON graphs
 docker compose config --quiet                  passed
@@ -172,7 +172,7 @@ docker compose build                           passed
 Docker health                                  3/3 healthy
 ```
 
-Docker-host MCP clients discovered both tool sets, retrieved `INC-1042`, found the Outlook procedure, and observed remote decisions disabled. Stdio regression tests also pass.
+Docker-host MCP clients discovered both tool sets, retrieved `INC-1042`, found the Outlook procedure, and observed remote decisions disabled. n8n 2.45.7 imported all exports and directly exercised both MCP services. Stdio regression tests also pass.
 
 ## Security boundaries
 
@@ -184,7 +184,7 @@ Docker-host MCP clients discovered both tool sets, retrieved `INC-1042`, found t
 - Transactional single-use decisions, version checks, expiry, audit IDs, and retry keys.
 - No credentials in workflow exports, source, seed data, or logs.
 
-Remaining MVP limitations include local environment identity for MCP proposal ownership, shared-token demo authorization, unsandboxed local subprocesses, SQLite single-host constraints, unverified n8n runtime import, and no live OpenAI evaluation.
+Remote approval now separates the n8n service credential from individual approver credentials resolved server-side; request JSON and `X-SupportOps-Approver` cannot assert identity. It remains disabled by default. Remaining limitations include local MCP proposal ownership, credential provisioning without OIDC/SSO, unsandboxed local subprocesses, SQLite single-host constraints, incomplete runtime coverage of every production workflow, and no live OpenAI evaluation.
 
 ## Documentation
 
@@ -198,3 +198,10 @@ Remaining MVP limitations include local environment identity for MCP proposal ow
 - [Demo scenarios](docs/demo-scenarios.md)
 - [French portfolio presentation](docs/presentation-fr.md)
 - [Roadmap](docs/roadmap.md)
+- [V2.1 audit](docs/v2.1-audit.md)
+- [V2.1 architecture](docs/v2.1-architecture.md)
+- [V2.1 n8n setup](docs/v2.1-n8n-setup.md)
+- [V2.1 security review](docs/v2.1-security-review.md)
+- [V2.1 E2E testing](docs/v2.1-e2e-testing.md)
+- [V2.1 demo guide](docs/v2.1-demo-guide.md)
+- [V2.1 release report](docs/v2.1-release-report.md)

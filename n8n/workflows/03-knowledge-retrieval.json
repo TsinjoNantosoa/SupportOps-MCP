@@ -81,11 +81,22 @@
       "name": "Get Best Procedure via MCP",
       "type": "@n8n/n8n-nodes-langchain.mcpClient",
       "typeVersion": 1.1,
-      "position": [620, -100]
+      "position": [620, -100],
+      "onError": "continueRegularOutput"
     },
     {
       "parameters": {
-        "jsCode": "return [{json:{found:false,results:[],message:$json.message||'No allowlisted procedure matched the query.'}}];"
+        "jsCode": "if($json.error) throw new Error('MCP_CONNECTION_ERROR: procedure lookup failed');\nconst procedure=$json.structuredContent;\nif(!procedure || !procedure.procedure_id) throw new Error('WORKFLOW_ERROR: MCP returned no structured procedure');\nconst correlation_id=$node['Validate Knowledge Query'].json.correlation_id||`n8n-${$execution.id}`;\nreturn [{json:{found:true,correlation_id,procedure,source_reference:procedure.source_reference}}];"
+      },
+      "id": "a3000003-0000-4000-8000-000000000008",
+      "name": "Normalize Procedure Result",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [860, -100]
+    },
+    {
+      "parameters": {
+        "jsCode": "const correlation_id=$node['Validate Knowledge Query'].json.correlation_id||`n8n-${$execution.id}`;\nreturn [{json:{found:false,correlation_id,results:[],message:$json.message||'No allowlisted procedure matched the query.'}}];"
       },
       "id": "a3000003-0000-4000-8000-000000000007",
       "name": "Return Explicit No Match",
@@ -104,12 +115,14 @@
         [{"node": "Get Best Procedure via MCP", "type": "main", "index": 0}],
         [{"node": "Return Explicit No Match", "type": "main", "index": 0}]
       ]
-    }
+    },
+    "Get Best Procedure via MCP": {"main": [[{"node": "Normalize Procedure Result", "type": "main", "index": 0}]]}
   },
   "pinData": {},
   "active": false,
   "settings": {"executionOrder": "v1"},
   "versionId": "a3000003-0000-4000-8000-000000000099",
+  "id": "a3000003-0000-4000-8000-000000000099",
   "meta": {"supportopsTargetN8n": "2.45.7"},
   "tags": []
 }

@@ -33,17 +33,30 @@
       "name": "Get Ticket via MCP",
       "type": "@n8n/n8n-nodes-langchain.mcpClient",
       "typeVersion": 1.1,
-      "position": [-40, 0]
+      "position": [-40, 0],
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "if ($json.error) throw new Error('MCP_CONNECTION_ERROR: ticket lookup failed');\nconst ticket=$json.structuredContent;\nif(!ticket || !ticket.ticket_id) throw new Error('WORKFLOW_ERROR: MCP returned no structured ticket');\nconst correlation_id=$node['Validate Ticket ID'].json.correlation_id||`n8n-${$execution.id}`;\nreturn [{json:{correlation_id,ticket_id:ticket.ticket_id,title:ticket.title,description:ticket.description,category:ticket.category,priority:ticket.priority,status:ticket.status,version:ticket.version,notes:ticket.notes||[],source:'ticketing-mcp'}}];"
+      },
+      "id": "a2000002-0000-4000-8000-000000000004",
+      "name": "Normalize Ticket Result",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [200, 0]
     }
   ],
   "connections": {
     "When Executed by Another Workflow": {"main": [[{"node": "Validate Ticket ID", "type": "main", "index": 0}]]},
-    "Validate Ticket ID": {"main": [[{"node": "Get Ticket via MCP", "type": "main", "index": 0}]]}
+    "Validate Ticket ID": {"main": [[{"node": "Get Ticket via MCP", "type": "main", "index": 0}]]},
+    "Get Ticket via MCP": {"main": [[{"node": "Normalize Ticket Result", "type": "main", "index": 0}]]}
   },
   "pinData": {},
   "active": false,
   "settings": {"executionOrder": "v1"},
   "versionId": "a2000002-0000-4000-8000-000000000099",
+  "id": "a2000002-0000-4000-8000-000000000099",
   "meta": {"supportopsTargetN8n": "2.45.7"},
   "tags": []
 }

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import runpy
 from pathlib import Path
 
 WORKFLOW_DIR = Path(__file__).parents[1] / "n8n" / "workflows"
@@ -28,6 +29,7 @@ def test_workflow_json_and_graph_integrity() -> None:
     for filename, workflow in workflows.items():
         assert workflow["name"].startswith("SupportOps")
         assert workflow["active"] is False
+        assert workflow["id"]
         assert workflow["meta"]["supportopsTargetN8n"] == "2.45.7"
         names = {node["name"] for node in workflow["nodes"]}
         ids = [node["id"] for node in workflow["nodes"]]
@@ -79,3 +81,25 @@ def test_agent_never_receives_approval_capabilities() -> None:
     assert not exposed.intersection(
         {"approve_ticket_update", "reject_ticket_update", "execute_sql", "run_shell_command"}
     )
+
+
+def test_v21_trust_boundaries_and_actual_mcp_output_shape() -> None:
+    workflows = load_workflows()
+    diagnosis = json.dumps(workflows["04-incident-diagnosis.json"]).lower()
+    approval_request = json.dumps(workflows["05-approval-request.json"]).lower()
+    decision = json.dumps(workflows["06-ticket-decision.json"]).lower()
+    errors = json.dumps(workflows["07-error-monitoring.json"]).lower()
+
+    assert "structuredcontent?.title" in diagnosis
+    assert "remote_application_allowed:false" in approval_request
+    assert "x-supportops-approver" not in decision
+    assert "$json.approver" not in decision
+    assert "individual api credential" in decision
+    assert "/events/errors" in errors
+    assert "safe_message" not in errors
+
+
+def test_standalone_validator_accepts_all_exports() -> None:
+    namespace = runpy.run_path(str(WORKFLOW_DIR.parent / "tests" / "validate_workflows.py"))
+    for path in WORKFLOW_DIR.glob("*.json"):
+        namespace["validate_workflow"](path)

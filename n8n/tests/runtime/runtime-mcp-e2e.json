@@ -1,0 +1,117 @@
+{
+  "name": "SupportOps V2.1 Runtime - Deterministic MCP E2E",
+  "nodes": [
+    {
+      "parameters": {},
+      "id": "b1000001-0000-4000-8000-000000000001",
+      "name": "Manual Runtime Test",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [-760, 0]
+    },
+    {
+      "parameters": {
+        "jsCode": "return [{json:{ticket_id:'INC-1042',correlation_id:'n8n-runtime-e2e-001'}}];"
+      },
+      "id": "b1000001-0000-4000-8000-000000000002",
+      "name": "Prepare Runtime Input",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [-540, 0]
+    },
+    {
+      "parameters": {
+        "serverTransport": "httpStreamable",
+        "endpointUrl": "http://supportops-ticketing:8001/mcp",
+        "authentication": "none",
+        "tool": {"mode": "id", "value": "get_ticket"},
+        "inputMode": "json",
+        "jsonInput": "={{ JSON.stringify({ ticket_id: $json.ticket_id }) }}",
+        "options": {"timeout": 30000}
+      },
+      "id": "b1000001-0000-4000-8000-000000000003",
+      "name": "Get Runtime Ticket",
+      "type": "@n8n/n8n-nodes-langchain.mcpClient",
+      "typeVersion": 1.1,
+      "position": [-300, 0]
+    },
+    {
+      "parameters": {
+        "jsCode": "const ticket=$json.structuredContent;\nif(ticket?.ticket_id!=='INC-1042') throw new Error('WORKFLOW_ERROR: unexpected ticket output');\nreturn [{json:{query:'Outlook sending issue',correlation_id:'n8n-runtime-e2e-001'}}];"
+      },
+      "id": "b1000001-0000-4000-8000-000000000004",
+      "name": "Prepare Runtime Knowledge Query",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [-60, 0]
+    },
+    {
+      "parameters": {
+        "serverTransport": "httpStreamable",
+        "endpointUrl": "http://supportops-knowledge:8002/mcp",
+        "authentication": "none",
+        "tool": {"mode": "id", "value": "search_knowledge"},
+        "inputMode": "json",
+        "jsonInput": "={{ JSON.stringify({ query: $json.query, limit: 3 }) }}",
+        "options": {"timeout": 30000}
+      },
+      "id": "b1000001-0000-4000-8000-000000000005",
+      "name": "Search Runtime Knowledge",
+      "type": "@n8n/n8n-nodes-langchain.mcpClient",
+      "typeVersion": 1.1,
+      "position": [180, 0]
+    },
+    {
+      "parameters": {
+        "jsCode": "const results=$json.structuredContent?.results||[];\nif(!results.length) throw new Error('WORKFLOW_ERROR: no Outlook procedure');\nreturn [{json:{procedure_id:results[0].procedure_id}}];"
+      },
+      "id": "b1000001-0000-4000-8000-000000000006",
+      "name": "Select Runtime Procedure",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [420, 0]
+    },
+    {
+      "parameters": {
+        "serverTransport": "httpStreamable",
+        "endpointUrl": "http://supportops-knowledge:8002/mcp",
+        "authentication": "none",
+        "tool": {"mode": "id", "value": "get_procedure"},
+        "inputMode": "json",
+        "jsonInput": "={{ JSON.stringify({ procedure_id: $json.procedure_id }) }}",
+        "options": {"timeout": 30000}
+      },
+      "id": "b1000001-0000-4000-8000-000000000007",
+      "name": "Get Runtime Procedure",
+      "type": "@n8n/n8n-nodes-langchain.mcpClient",
+      "typeVersion": 1.1,
+      "position": [660, 0]
+    },
+    {
+      "parameters": {
+        "jsCode": "const ticket=$node['Get Runtime Ticket'].json.structuredContent;\nconst procedure=$json.structuredContent;\nif(!procedure?.source_reference) throw new Error('WORKFLOW_ERROR: procedure source missing');\nreturn [{json:{status:'PASS',correlation_id:'n8n-runtime-e2e-001',ticket_id:ticket.ticket_id,ticket_status:ticket.status,procedure_id:procedure.procedure_id,source_reference:procedure.source_reference}}];"
+      },
+      "id": "b1000001-0000-4000-8000-000000000008",
+      "name": "Assert Runtime Results",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [900, 0]
+    }
+  ],
+  "connections": {
+    "Manual Runtime Test": {"main": [[{"node": "Prepare Runtime Input", "type": "main", "index": 0}]]},
+    "Prepare Runtime Input": {"main": [[{"node": "Get Runtime Ticket", "type": "main", "index": 0}]]},
+    "Get Runtime Ticket": {"main": [[{"node": "Prepare Runtime Knowledge Query", "type": "main", "index": 0}]]},
+    "Prepare Runtime Knowledge Query": {"main": [[{"node": "Search Runtime Knowledge", "type": "main", "index": 0}]]},
+    "Search Runtime Knowledge": {"main": [[{"node": "Select Runtime Procedure", "type": "main", "index": 0}]]},
+    "Select Runtime Procedure": {"main": [[{"node": "Get Runtime Procedure", "type": "main", "index": 0}]]},
+    "Get Runtime Procedure": {"main": [[{"node": "Assert Runtime Results", "type": "main", "index": 0}]]}
+  },
+  "pinData": {},
+  "active": false,
+  "settings": {"executionOrder": "v1"},
+  "versionId": "b1000001-0000-4000-8000-000000000099",
+  "id": "b1000001-0000-4000-8000-000000000099",
+  "meta": {"supportopsTargetN8n": "2.45.7", "runtimeTestOnly": true},
+  "tags": []
+}

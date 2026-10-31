@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+import json
 import os
+import re
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -32,7 +34,7 @@ class Settings:
     approval_port: int
     approval_api_token: str | None
     remote_approval_enabled: bool
-    authorized_approvers: tuple[str, ...]
+    approver_tokens: tuple[tuple[str, str], ...]
     approval_allowed_hosts: tuple[str, ...]
 
     @classmethod
@@ -80,7 +82,7 @@ class Settings:
             approval_port=int(os.getenv("SUPPORTOPS_APPROVAL_PORT", "8010")),
             approval_api_token=(os.getenv("SUPPORTOPS_APPROVAL_API_TOKEN", "").strip() or None),
             remote_approval_enabled=_bool_env("SUPPORTOPS_REMOTE_APPROVAL_ENABLED", False),
-            authorized_approvers=_csv_env("SUPPORTOPS_AUTHORIZED_APPROVERS", ()),
+            approver_tokens=_secret_mapping_env("SUPPORTOPS_APPROVER_TOKENS_JSON"),
             approval_allowed_hosts=_csv_env(
                 "SUPPORTOPS_APPROVAL_ALLOWED_HOSTS", ("localhost", "127.0.0.1")
             ),
@@ -99,3 +101,29 @@ def _bool_env(name: str, default: bool) -> bool:
     if raw is None:
         return default
     return raw.strip().lower() in {"1", "true", "yes", "on"}
+
+
+def _secret_mapping_env(name: str) -> tuple[tuple[str, str], ...]:
+    """Load an identity-to-secret map without ever logging its values."""
+
+    raw = os.getenv(name, "").strip()
+    if not raw:
+        return ()
+    try:
+        parsed = json.loads(raw)
+    except json.JSONDecodeError as exc:
+        raise ValueError(f"{name} must be a JSON object") from exc
+    if not isinstance(parsed, dict):
+        raise ValueError(f"{name} must be a JSON object")
+    result: list[tuple[str, str]] = []
+    seen_tokens: set[str] = set()
+    for actor, token in parsed.items():
+        if not isinstance(actor, str) or not re.fullmatch(r"[A-Za-z0-9._@-]{1,100}", actor):
+            raise ValueError(f"{name} contains an invalid approver identifier")
+        if not isinstance(token, str) or len(token) < 16 or token.isspace():
+            raise ValueError(f"{name} tokens must contain at least 16 characters")
+        if token in seen_tokens:
+            raise ValueError(f"{name} tokens must be unique per approver")
+        seen_tokens.add(token)
+        result.append((actor, token))
+    return tuple(result)
